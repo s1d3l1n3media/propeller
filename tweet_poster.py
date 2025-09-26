@@ -15,8 +15,11 @@ scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 
 # Service account credentials from environment variable
+import json
+
 service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+
 client = gspread.authorize(creds)
 sheet = client.open(os.environ.get("SHEET_NAME", "QuoteRetweets")).sheet1
 
