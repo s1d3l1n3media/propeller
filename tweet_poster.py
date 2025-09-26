@@ -7,6 +7,16 @@ import threading
 import requests
 import os
 import json
+from flask import Flask
+
+# -------------------
+# Flask dummy web server
+# -------------------
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Tweet poster is running!"
 
 # -------------------
 # Google Sheets setup
@@ -14,10 +24,8 @@ import json
 scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 
-# Service account credentials from environment variable
 service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
-
 client = gspread.authorize(creds)
 sheet = client.open(os.environ.get("SHEET_NAME", "QuoteRetweets")).sheet1
 
@@ -89,7 +97,7 @@ hashtags_list = [
 ]
 
 # -------------------
-# Twitter API credentials from environment variables
+# Twitter API credentials
 # -------------------
 API_KEY = os.environ.get("TWITTER_API_KEY")
 API_SECRET = os.environ.get("TWITTER_API_SECRET")
@@ -100,7 +108,7 @@ auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET
 api = tweepy.API(auth)
 
 # -------------------
-# Function to safely update sheet with quota protection
+# Safe Google Sheets update
 # -------------------
 def safe_update_cell(row, col, value):
     try:
@@ -110,18 +118,17 @@ def safe_update_cell(row, col, value):
         print(f"Error updating cell {row},{col} -> {e}")
 
 # -------------------
-# Function to post one tweet from the sheet
+# Post one tweet from sheet
 # -------------------
 def post_next_tweet():
     rows = sheet.get_all_values()
-    for idx, row in enumerate(rows[1:], start=2):  # skip header
+    for idx, row in enumerate(rows[1:], start=2):
         posted = row[3].strip().upper() if len(row) > 3 else "FALSE"
         tweet_url = row[0].strip() if len(row) > 0 else None
 
         if posted != "FALSE" or not tweet_url:
             continue
 
-        # Check if tweet URL is valid
         try:
             resp = requests.head(tweet_url, timeout=5)
             if resp.status_code != 200:
@@ -133,7 +140,6 @@ def post_next_tweet():
             safe_update_cell(idx, 4, "SKIPPED")
             continue
 
-        # Random quote + 2 hashtags
         quote = row[1] if len(row) > 1 and row[1] else random.choice(quotes_list)
         hashtags = row[2] if len(row) > 2 and row[2] else " ".join(random.sample(hashtags_list, 2))
 
@@ -147,10 +153,10 @@ def post_next_tweet():
             print(f"Error posting {tweet_url} -> {e}")
             safe_update_cell(idx, 4, "SKIPPED")
 
-        break  # Only post one per run
+        break
 
 # -------------------
-# Loop for posting automatically
+# Posting loop
 # -------------------
 def posting_loop():
     max_per_day = 100
@@ -164,7 +170,11 @@ def posting_loop():
 # Main
 # -------------------
 if __name__ == "__main__":
+    # Start background tweeting thread
     threading.Thread(target=posting_loop, daemon=True).start()
     print("Tweet posting loop started...")
-    while True:
-        time.sleep(60)  # keep main thread alive
+
+    # Run Flask server (Render needs this for free plan)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
