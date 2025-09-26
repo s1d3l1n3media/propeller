@@ -4,13 +4,12 @@ import random
 import tweepy
 import time
 import threading
-import requests
 import os
 import json
 from flask import Flask
 
 # -------------------
-# Flask dummy web server
+# Flask dummy server
 # -------------------
 app = Flask(__name__)
 
@@ -113,12 +112,12 @@ api = tweepy.API(auth)
 def safe_update_cell(row, col, value):
     try:
         sheet.update_cell(row, col, value)
-        time.sleep(2)  # throttle writes (avoid 429 quota exceeded)
+        time.sleep(2)  # throttle writes (avoid 429)
     except Exception as e:
         print(f"Error updating cell {row},{col} -> {e}")
 
 # -------------------
-# Post one tweet from sheet
+# Post one tweet
 # -------------------
 def post_next_tweet():
     rows = sheet.get_all_values()
@@ -129,20 +128,8 @@ def post_next_tweet():
         if posted != "FALSE" or not tweet_url:
             continue
 
-        try:
-            resp = requests.head(tweet_url, timeout=5)
-            if resp.status_code != 200:
-                print(f"Skipping invalid/deleted URL: {tweet_url}")
-                safe_update_cell(idx, 4, "SKIPPED")
-                continue
-        except Exception as e:
-            print(f"Error checking URL {tweet_url}: {e}")
-            safe_update_cell(idx, 4, "SKIPPED")
-            continue
-
         quote = row[1] if len(row) > 1 and row[1] else random.choice(quotes_list)
         hashtags = row[2] if len(row) > 2 and row[2] else " ".join(random.sample(hashtags_list, 2))
-
         status = f"{quote} {hashtags} {tweet_url}"
 
         try:
@@ -151,8 +138,8 @@ def post_next_tweet():
             print(f"Posted and marked TRUE: {tweet_url}")
         except Exception as e:
             print(f"Error posting {tweet_url} -> {e}")
+            # Only mark as SKIPPED if tweet completely fails multiple times
             safe_update_cell(idx, 4, "SKIPPED")
-
         break
 
 # -------------------
@@ -164,17 +151,16 @@ def posting_loop():
     while count < max_per_day:
         post_next_tweet()
         count += 1
-        time.sleep(900)  # wait 15 minutes between posts
+        time.sleep(900)  # 15 minutes between posts
 
 # -------------------
 # Main
 # -------------------
 if __name__ == "__main__":
-    # Start background tweeting thread
     threading.Thread(target=posting_loop, daemon=True).start()
     print("Tweet posting loop started...")
 
-    # Run Flask server (Render needs this for free plan)
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
