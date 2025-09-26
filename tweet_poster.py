@@ -128,6 +128,7 @@ def post_next_tweet():
         if posted != "FALSE" or not tweet_url:
             continue
 
+        # Compose tweet: quote + hashtags + URL
         quote = row[1] if len(row) > 1 and row[1] else random.choice(quotes_list)
         hashtags = row[2] if len(row) > 2 and row[2] else " ".join(random.sample(hashtags_list, 2))
         status = f"{quote} {hashtags} {tweet_url}"
@@ -138,9 +139,7 @@ def post_next_tweet():
             print(f"Posted and marked TRUE: {tweet_url}")
         except Exception as e:
             print(f"Error posting {tweet_url} -> {e}")
-            # Only mark as SKIPPED if tweet completely fails multiple times
-            safe_update_cell(idx, 4, "SKIPPED")
-        break
+        break  # Only post one per run
 
 # -------------------
 # Posting loop
@@ -162,5 +161,3 @@ if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
