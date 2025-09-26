@@ -112,7 +112,7 @@ api = tweepy.API(auth)
 def safe_update_cell(row, col, value):
     try:
         sheet.update_cell(row, col, value)
-        time.sleep(2)  # throttle writes (avoid 429)
+        time.sleep(2)  # throttle writes
     except Exception as e:
         print(f"Error updating cell {row},{col} -> {e}")
 
@@ -156,8 +156,9 @@ def posting_loop():
 # Main
 # -------------------
 if __name__ == "__main__":
+    print("Tweet posting loop starting...")
+    post_next_tweet()  # post one immediately on start
     threading.Thread(target=posting_loop, daemon=True).start()
-    print("Tweet posting loop started...")
 
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
