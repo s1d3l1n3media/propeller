@@ -15,8 +15,6 @@ scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 
 # Service account credentials from environment variable
-import json
-
 service_account_info = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT"))
 creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
 
@@ -102,6 +100,16 @@ auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET
 api = tweepy.API(auth)
 
 # -------------------
+# Function to safely update sheet with quota protection
+# -------------------
+def safe_update_cell(row, col, value):
+    try:
+        sheet.update_cell(row, col, value)
+        time.sleep(2)  # throttle writes (avoid 429 quota exceeded)
+    except Exception as e:
+        print(f"Error updating cell {row},{col} -> {e}")
+
+# -------------------
 # Function to post one tweet from the sheet
 # -------------------
 def post_next_tweet():
@@ -118,11 +126,11 @@ def post_next_tweet():
             resp = requests.head(tweet_url, timeout=5)
             if resp.status_code != 200:
                 print(f"Skipping invalid/deleted URL: {tweet_url}")
-                sheet.update_cell(idx, 4, "SKIPPED")
+                safe_update_cell(idx, 4, "SKIPPED")
                 continue
         except Exception as e:
             print(f"Error checking URL {tweet_url}: {e}")
-            sheet.update_cell(idx, 4, "SKIPPED")
+            safe_update_cell(idx, 4, "SKIPPED")
             continue
 
         # Random quote + 2 hashtags
@@ -133,10 +141,11 @@ def post_next_tweet():
 
         try:
             api.update_status(status=status)
-            sheet.update_cell(idx, 4, "TRUE")
+            safe_update_cell(idx, 4, "TRUE")
             print(f"Posted and marked TRUE: {tweet_url}")
         except Exception as e:
             print(f"Error posting {tweet_url} -> {e}")
+            safe_update_cell(idx, 4, "SKIPPED")
 
         break  # Only post one per run
 
